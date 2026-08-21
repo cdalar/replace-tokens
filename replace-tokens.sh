@@ -6,8 +6,16 @@
 #   - token pattern: #{ }#
 #   - variable source: environment variables (as set by the preceding
 #     AzureKeyVault@N task running with RunAsPreJob: true)
-#   - variable name -> env var mapping: uppercase, non-alphanumeric -> "_"
-#     (this is how Azure DevOps exposes pipeline/KeyVault variables as env vars)
+#   - variable name -> env var mapping: uppercase, non-alphanumeric -> "_".
+#     A token's name is normalized this way to build its lookup key, and the
+#     raw process environment is read directly (via `env -0`, not bash's own
+#     ${!key} variable table) and normalized the same way -- because bash
+#     silently refuses to import an env var into its variable table if the
+#     literal name isn't a valid shell identifier (e.g. one containing a
+#     hyphen), even though the value is genuinely present in the process
+#     environment and visible to tools like printenv. This makes lookup work
+#     regardless of whether Azure DevOps happened to keep the raw character
+#     (e.g. a hyphen) or convert it when it exposed the variable.
 #   - actionOnMissing: warn (does not fail the step)
 #   - keepToken: false (missing/empty variable is replaced with an empty string)
 #
@@ -75,14 +83,27 @@ if [ "${#files[@]}" -eq 0 ]; then
   exit 0
 fi
 
-# Normalizes a token name to the env var name ADO would expose it as:
-# uppercase, any non [A-Za-z0-9] character becomes "_".
+# Normalizes a token/variable name to a lookup key: uppercase, any non
+# [A-Za-z0-9] character becomes "_".
 normalize_key() {
   local name="$1" key
   key=$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')
   key="${key//[^A-Za-z0-9]/_}"
   printf '%s' "$key"
 }
+
+# Build a normalized-key -> value lookup from the raw process environment
+# instead of relying on bash's own variable table (${!key}): bash silently
+# refuses to import env vars whose literal name isn't a valid shell
+# identifier (e.g. one containing a hyphen), even though the value is still
+# present in the process environment and visible to tools like printenv.
+# Reading it back via `env -0` sees it regardless of the raw name's shape.
+declare -A env_values
+while IFS= read -r -d '' entry; do
+  name="${entry%%=*}"
+  value="${entry#*=}"
+  env_values["$(normalize_key "$name")"]="$value"
+done < <(env -0)
 
 # Replaces every #{...}# token on one line. Emits REPLACED:/EMPTYVALUE:/MISSING:
 # events (name only, never the value) on fd 3 for the caller to log.
@@ -94,8 +115,8 @@ process_line() {
     name="${rest%%\}#*}"
     after="${rest#*\}#}"
     key=$(normalize_key "$name")
-    if [ -n "${!key+x}" ]; then
-      value="${!key}"
+    if [ -n "${env_values[$key]+x}" ]; then
+      value="${env_values[$key]}"
       if [ -n "$value" ]; then
         out+="${before}${value}"
         printf 'REPLACED:%s\n' "$name" >&3

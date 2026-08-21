@@ -10,8 +10,16 @@
 #   - variable source: environment variables (as set by the preceding
 #     AzureKeyVault@N task running with RunAsPreJob: true, and/or plain
 #     pipeline variables)
-#   - variable name -> env var mapping: uppercase, non-alphanumeric -> "_"
-#     (this is how Azure DevOps exposes pipeline/KeyVault variables as env vars)
+#   - variable name -> env var mapping: uppercase, non-alphanumeric -> "_".
+#     A token's name is normalized this way to build its lookup key, and
+#     (for non-secret variables) the raw process environment is read
+#     directly via `env -0`, not bash's own ${!key} variable table, and
+#     normalized the same way -- because bash silently refuses to import an
+#     env var into its variable table if the literal name isn't a valid
+#     shell identifier (e.g. one containing a hyphen), even though the value
+#     is genuinely present in the process environment and visible to tools
+#     like printenv. This makes lookup work regardless of whether Azure
+#     DevOps happened to keep the raw character or convert it.
 #   - actionOnMissing: warn (does not fail the step)
 #   - keepToken: false (missing/empty variable is replaced with an empty string)
 #
@@ -113,6 +121,21 @@ steps:
         printf '%s' "$key"
       }
 
+      # Build a normalized-key -> value lookup from the raw process
+      # environment instead of relying on bash's own variable table
+      # (${!key}): bash silently refuses to import env vars whose literal
+      # name isn't a valid shell identifier (e.g. one containing a hyphen),
+      # even though the value is still present in the process environment.
+      # Reading it back via `env -0` sees it regardless of the raw name's
+      # shape. This only covers non-secret variables -- secrets are read via
+      # the RT_SECRET_ carriers above, which are always valid identifiers.
+      declare -A env_values
+      while IFS= read -r -d '' entry; do
+        env_name="${entry%%=*}"
+        env_value="${entry#*=}"
+        env_values["$(normalize_key "$env_name")"]="$env_value"
+      done < <(env -0)
+
       process_line() {
         local line="$1" out="" before rest name after key value
         while [[ "$line" == *'#{'*'}#'* ]]; do
@@ -130,8 +153,8 @@ steps:
               out+="${before}"
               printf 'EMPTYVALUE:%s\n' "$name" >&3
             fi
-          elif [ -n "${!key+x}" ]; then
-            value="${!key}"
+          elif [ -n "${env_values[$key]+x}" ]; then
+            value="${env_values[$key]}"
             if [ -n "$value" ]; then
               out+="${before}${value}"
               printf 'REPLACED:%s\n' "$name" >&3

@@ -87,6 +87,25 @@ test_normalizes_dotted_and_dashed_variable_names() {
   rm -rf "$dir"
 }
 
+test_finds_variable_whose_raw_env_name_has_a_hyphen() {
+  local dir out status
+  dir=$(mktemp -d)
+  printf 'val=#{HASHICORP-AZURERM}#\n' >"$dir/file.txt"
+
+  # The raw env var name here keeps the literal hyphen (as opposed to a
+  # bash `VAR=val` assignment, which would reject that as an identifier).
+  # bash never imports such a name into its own ${!key} variable table, so
+  # this only passes if lookups go through the env -0 dump instead.
+  out=$(cd "$dir" && env -i PATH="$PATH" 'HASHICORP-AZURERM=secretvalue' bash "$SCRIPT" 'file.txt' 2>&1)
+  status=$?
+
+  assert_status "hyphenated raw name: exit code" 0 "$status"
+  assert_eq "hyphenated raw name: file content" 'val=secretvalue' "$(cat "$dir/file.txt")"
+  assert_contains "hyphenated raw name: log line" "$out" "replaced #{HASHICORP-AZURERM}#"
+
+  rm -rf "$dir"
+}
+
 test_missing_variable_warns_and_empties_token() {
   local dir out status
   dir=$(mktemp -d)
@@ -215,6 +234,7 @@ cases=(
   "test_replaces_single_token:Replaces a single #{Token}# with its env var value and logs the replacement"
   "test_replaces_multiple_tokens_on_one_line:Replaces multiple tokens on the same line"
   "test_normalizes_dotted_and_dashed_variable_names:Normalizes dotted/dashed variable names (My.Connection-String -> MY_CONNECTION_STRING) before lookup"
+  "test_finds_variable_whose_raw_env_name_has_a_hyphen:Finds a variable even when its raw env var name literally contains a hyphen (bash can't see it via \${!key})"
   "test_missing_variable_warns_and_empties_token:Missing variable -> token emptied, warning logged, exit 0"
   "test_empty_variable_warns_and_empties_token:Present-but-empty variable -> token emptied, \"no value\" warning logged"
   "test_processes_multiple_matched_files:Processes every file matched by a glob pattern, not just the first"
