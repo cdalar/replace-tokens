@@ -45,6 +45,13 @@ which is exactly what `AzureKeyVault@N` produces — are **not**
 auto-exposed, regardless of naming. You must explicitly map each one in
 the calling step's YAML.
 
+**If your `#{ }#` tokens only reference non-secret variables** (a plain
+`variables:` block, a non-secret variable group entry, a queue-time
+variable, etc.), none of this applies to you — those are already present
+in the environment automatically, so `replace-tokens.sh` picks them up
+with no `env:` mapping and no `secretVariables` entry needed. The mapping
+below is only required for variables Azure DevOps has marked **secret**.
+
 ### Using `replace-tokens.sh` directly
 
 ```yaml
@@ -93,7 +100,7 @@ Directories named `.terraform` are excluded by default (edit the
 |---|---|---|---|
 | `targetFiles` | string | `**/*.tf` | Glob pattern(s) of files to process, newline-separated for multiple |
 | `excludeDirs` | string | `.terraform` | Comma-separated directory names to skip |
-| `secretVariables` | object (list) | `[]` | Pipeline variable names referenced by `#{ }#` tokens that are secret; each is mapped into the step's environment |
+| `secretVariables` | object (list) | `[]` | Names of **secret** pipeline variables referenced by `#{ }#` tokens, so they can be explicitly mapped into the step's environment. Non-secret variables are already auto-exposed by Azure Pipelines and don't need to be listed here. |
 
 ## Testing
 
