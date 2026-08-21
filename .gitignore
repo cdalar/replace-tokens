@@ -1,0 +1,11 @@
+# OS
+.DS_Store
+
+# Editors
+*.swp
+*.swo
+*~
+
+# Local scratch files
+*.log
+*.tmp
