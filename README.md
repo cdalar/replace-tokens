@@ -97,6 +97,22 @@ want your token to resolve against:
 
 `#{AccessToken}#` in a target file then resolves to that value.
 
+## Example: a reusable Terraform plan job
+
+[`examples/plan.template.yaml`](examples/plan.template.yaml) is a job
+template pulling AzureKeyVault@2 and `replace-tokens.yml` together: it takes
+a list of `{ keyVaultName, serviceConnectionName, keyVaultSecrets }` entries,
+runs one `AzureKeyVault@2` task per entry, and flattens every entry's
+comma-separated `keyVaultSecrets` (the same string passed as `SecretsFilter`)
+into `replace-tokens.yml`'s `secretVariables` — one list of secret names to
+maintain instead of two. It also demonstrates guarding both the
+`AzureKeyVault@2` loop and the `secretVariables` block with
+`${{ if parameters.secrets }}`, so a caller that passes no secrets at all
+doesn't trip either an unnecessary Key Vault call or a `null` value landing
+where `replace-tokens.yml` expects a list (see the file for why that
+matters). Validated end-to-end against a real Azure Pipelines agent — see
+[Related repositories](#related-repositories) below.
+
 ## Usage (standalone script)
 
 ```
@@ -120,6 +136,22 @@ Directories named `.terraform` are excluded by default (edit the
 | `excludeDirs` | string | `.terraform` | Comma-separated directory names to skip |
 | `secretVariables` | object (list) | `[]` | Names of **secret** pipeline variables referenced by `#{ }#` tokens, so they can be explicitly mapped into the step's environment. Non-secret variables are already auto-exposed by Azure Pipelines and don't need to be listed here. |
 | `extraEnv` | object (map) | `{}` | Arbitrary extra `env:` entries to inject into the step, keyed by the env var name you want a token to resolve against. For values that aren't plain pipeline variables at all — e.g. `System.AccessToken`, which Azure Pipelines withholds from script steps by default. |
+
+## Related repositories
+
+- **[cdalar/replace-tokens](https://github.com/cdalar/replace-tokens)**
+  (GitHub, public) — this repo. Source of truth for `replace-tokens.sh`,
+  `replace-tokens.yml`, the test suite, and examples.
+- **`dev.azure.com/cdalar/test/_git/replace-tokens-test`** (Azure DevOps,
+  private) — a companion sandbox repo used to validate changes against a
+  real Azure Pipelines agent before they land here: color output actually
+  rendering in the ADO log viewer, `#{ }#` tokens backed by pipeline
+  variables whose raw env var name isn't a valid bash identifier (e.g. one
+  containing a hyphen), `extraEnv`/`System.AccessToken`, and the
+  `examples/plan.template.yaml` job template's guarded, flattened
+  `secretVariables` construction — things a local bash test suite can
+  exercise the logic of, but can't confirm actually behave a given way on
+  ADO's own YAML template engine and hosted agents.
 
 ## Testing
 

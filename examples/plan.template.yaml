@@ -1,0 +1,76 @@
+# Example job template: a Terraform "plan" job that fetches secrets from one
+# or more Azure Key Vaults and feeds them into replace-tokens.yml, without
+# maintaining the secret name list twice.
+#
+# The trick: AzureKeyVault@2's `SecretsFilter` is a comma-separated string of
+# secret names, and replace-tokens.yml's `secretVariables` needs a flat list
+# of names. `${{ each kv in parameters.secrets }}` + `split(kv.keyVaultSecrets, ',')`
+# turns each Key Vault entry's filter into list items, and since both nested
+# `each` blocks are written as sequence items (leading `-` at every level),
+# they concatenate into one flat secretVariables list across every Key Vault
+# entry -- one source of truth instead of two.
+#
+# Both the ${{ if parameters.secrets }} guards below matter: when `secrets`
+# is empty or omitted, they skip the AzureKeyVault@2 loop AND the
+# secretVariables key entirely, rather than letting secretVariables compile
+# down to `null` (which is what an each-loop with zero iterations produces,
+# as opposed to `[]`) and get passed to replace-tokens.yml, overriding its
+# own `default: []` for that parameter.
+#
+# Usage:
+#   jobs:
+#     - template: examples/plan.template.yaml
+#       parameters:
+#         tfMainPath: 'infra/prod'
+#         tfvarsFile: 'infra/prod/terraform.tfvars'
+#         secrets:
+#           - keyVaultName: my-vault
+#             serviceConnectionName: my-service-connection
+#             keyVaultSecrets: 'ApiKey,My.Connection-String'
+#           - keyVaultName: my-other-vault
+#             serviceConnectionName: my-other-service-connection
+#             keyVaultSecrets: 'DbPassword'
+
+parameters:
+  - name: jobName
+    type: string
+    default: job_plan
+  - name: tfMainPath
+    type: string
+  - name: tfvarsFile
+    type: string
+  - name: secrets
+    type: object
+    default: []
+    # List of { keyVaultName, serviceConnectionName, keyVaultSecrets } objects.
+    # keyVaultSecrets is the same comma-separated SecretsFilter string passed
+    # to AzureKeyVault@2 -- keep it comma-separated with no spaces (matching
+    # AzureKeyVault@2's own documented format), since split() won't trim
+    # whitespace and a stray leading space would break the name match.
+
+jobs:
+  - job: ${{ parameters.jobName }}
+    displayName: "Plan ${{parameters.tfMainPath}}"
+    steps:
+      - ${{ if parameters.secrets }}:
+        - ${{ each kv in parameters.secrets }}:
+          - task: AzureKeyVault@2
+            displayName: "Retrieve secrets from ${{kv.keyVaultName}} "
+            inputs:
+              azureSubscription: ${{kv.serviceConnectionName}}
+              KeyVaultName: ${{kv.keyVaultName}}
+              SecretsFilter: ${{kv.keyVaultSecrets}}
+              RunAsPreJob: true
+      - checkout: self
+      - template: /replace-tokens.yml
+        parameters:
+          targetFiles: |
+            ${{parameters.tfMainPath}}/**/*.tf
+            ${{parameters.tfvarsFile}}
+          ${{ if parameters.secrets }}:
+            secretVariables:
+              - ${{ each kv in parameters.secrets }}:
+                - ${{ each name in split(kv.keyVaultSecrets, ',') }}:
+                  - ${{ name }}
+          extraEnv:
+            ACCESSTOKEN: $(System.AccessToken)
