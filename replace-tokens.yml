@@ -66,6 +66,18 @@ parameters:
     #   secretVariables:
     #     - My.Connection-String
     #     - ApiKey
+  - name: extraEnv
+    type: object
+    default: {}
+    # Arbitrary extra env var entries to inject into the step, keyed by
+    # whatever env var name you want your #{ }# tokens to resolve against.
+    # Use this for values that aren't plain pipeline variables at all --
+    # predefined variables Azure Pipelines withholds by default (like
+    # System.AccessToken), or anything else you'd otherwise add to the
+    # step's own env: block if you could edit it directly.
+    # Example:
+    #   extraEnv:
+    #     ACCESSTOKEN: $(System.AccessToken)
 
 steps:
   - bash: |
@@ -223,3 +235,5 @@ steps:
       RT_SECRET_NAMES: ${{ join(',', parameters.secretVariables) }}
       ${{ each name in parameters.secretVariables }}:
         RT_SECRET_${{ replace(replace(name, '.', '_'), '-', '_') }}: $(${{ name }})
+      ${{ each pair in parameters.extraEnv }}:
+        ${{ pair.key }}: ${{ pair.value }}

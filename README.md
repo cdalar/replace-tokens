@@ -79,6 +79,24 @@ prefer this over the standalone script when you can:
       - My.Connection-String
 ```
 
+### Injecting other env vars (e.g. `System.AccessToken`)
+
+Some values aren't pipeline variables at all — `System.AccessToken` is a
+predefined variable that Azure Pipelines withholds from script steps the
+same way it withholds secrets. Since the template owns its step's `env:`
+block, use `extraEnv` to inject anything like this under whatever name you
+want your token to resolve against:
+
+```yaml
+- template: replace-tokens.yml
+  parameters:
+    targetFiles: '**/*.tf'
+    extraEnv:
+      ACCESSTOKEN: $(System.AccessToken)
+```
+
+`#{AccessToken}#` in a target file then resolves to that value.
+
 ## Usage (standalone script)
 
 ```
@@ -101,6 +119,7 @@ Directories named `.terraform` are excluded by default (edit the
 | `targetFiles` | string | `**/*.tf` | Glob pattern(s) of files to process, newline-separated for multiple |
 | `excludeDirs` | string | `.terraform` | Comma-separated directory names to skip |
 | `secretVariables` | object (list) | `[]` | Names of **secret** pipeline variables referenced by `#{ }#` tokens, so they can be explicitly mapped into the step's environment. Non-secret variables are already auto-exposed by Azure Pipelines and don't need to be listed here. |
+| `extraEnv` | object (map) | `{}` | Arbitrary extra `env:` entries to inject into the step, keyed by the env var name you want a token to resolve against. For values that aren't plain pipeline variables at all — e.g. `System.AccessToken`, which Azure Pipelines withholds from script steps by default. |
 
 ## Testing
 
