@@ -94,3 +94,15 @@ Directories named `.terraform` are excluded by default (edit the
 | `targetFiles` | string | `**/*.tf` | Glob pattern(s) of files to process, newline-separated for multiple |
 | `excludeDirs` | string | `.terraform` | Comma-separated directory names to skip |
 | `secretVariables` | object (list) | `[]` | Pipeline variable names referenced by `#{ }#` tokens that are secret; each is mapped into the step's environment |
+
+## Testing
+
+```
+./tests/test_replace-tokens.sh
+```
+
+A pure-bash test suite (no framework, no dependencies) covering token
+substitution, variable name normalization, missing/empty variables,
+multi-file globs, excluded directories, and edge cases like files with no
+trailing newline. Runs in CI via GitHub Actions on every push to `main`
+and every pull request (`.github/workflows/tests.yml`).

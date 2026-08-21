@@ -131,11 +131,16 @@ steps:
         tmpfile=$(mktemp)
         eventfile=$(mktemp)
 
+        had_trailing_newline=1
+        [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && had_trailing_newline=0
+
         {
           while IFS= read -r line || [ -n "$line" ]; do
             process_line "$line"
           done < "$file"
         } 3>"$eventfile" > "$tmpfile"
+
+        [ "$had_trailing_newline" -eq 0 ] && truncate -s -1 "$tmpfile"
 
         mv "$tmpfile" "$file"
 

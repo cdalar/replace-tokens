@@ -136,13 +136,20 @@ for file in "${files[@]}"; do
   tmpfile=$(mktemp)
   eventfile=$(mktemp)
 
+  # Preserve "no trailing newline" files faithfully: read handles the last
+  # partial line via the `|| [ -n "$line" ]` guard, but process_line always
+  # emits a newline after it -- so if the source file didn't end in one,
+  # trim the newline that was just added back off below.
+  had_trailing_newline=1
+  [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && had_trailing_newline=0
+
   {
-    # Preserve "no trailing newline" files faithfully: read handles the
-    # last partial line via the `|| [ -n "$line" ]` guard.
     while IFS= read -r line || [ -n "$line" ]; do
       process_line "$line"
     done < "$file"
   } 3>"$eventfile" > "$tmpfile"
+
+  [ "$had_trailing_newline" -eq 0 ] && truncate -s -1 "$tmpfile"
 
   mv "$tmpfile" "$file"
 
