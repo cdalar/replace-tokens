@@ -1,3 +1,44 @@
+# Pure-bash drop-in replacement for qetza.replacetokens-task@6 with default
+# settings, packaged as an Azure Pipelines step template. See replace-tokens.sh
+# for the standalone-script version this mirrors -- prefer this template when
+# you have secret pipeline variables to reference, since it automates the
+# env: mapping that secrets otherwise require (see the secretVariables
+# parameter below).
+#
+# Defaults replicated:
+#   - token pattern: #{ }#
+#   - variable source: environment variables (as set by the preceding
+#     AzureKeyVault@N task running with RunAsPreJob: true, and/or plain
+#     pipeline variables)
+#   - variable name -> env var mapping: uppercase, non-alphanumeric -> "_"
+#     (this is how Azure DevOps exposes pipeline/KeyVault variables as env vars)
+#   - actionOnMissing: warn (does not fail the step)
+#   - keepToken: false (missing/empty variable is replaced with an empty string)
+#
+# Non-secret pipeline variables are auto-exposed to this step's environment by
+# Azure Pipelines itself, so tokens referencing them just work. Secret
+# variables (e.g. from AzureKeyVault@N) are never auto-exposed -- list their
+# names in the secretVariables parameter below and this template maps each
+# one in for you.
+#
+# Logging (values are never printed, only token/variable names):
+#   - a token that gets replaced with a non-empty value -> info line
+#   - a token whose variable exists but is set to an empty string -> warning
+#   - a token whose variable doesn't exist at all -> warning
+#
+# Note: matching is done line-by-line, so a token split across a line break
+# will not be recognized (the original task scans the whole file; this is
+# the one behavioral difference of going dependency-free).
+#
+# Usage:
+#   - template: replace-tokens.yml
+#     parameters:
+#       targetFiles: '**/*.tf'
+#       excludeDirs: '.terraform'
+#       secretVariables:
+#         - My.Connection-String
+#         - ApiKey
+
 parameters:
   - name: targetFiles
     type: string
