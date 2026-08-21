@@ -209,17 +209,28 @@ test_no_arguments_is_an_error() {
   assert_contains "no args: mentions missing patterns" "$out" "no target file pattern(s) supplied"
 }
 
-test_replaces_single_token
-test_replaces_multiple_tokens_on_one_line
-test_normalizes_dotted_and_dashed_variable_names
-test_missing_variable_warns_and_empties_token
-test_empty_variable_warns_and_empties_token
-test_processes_multiple_matched_files
-test_preserves_missing_trailing_newline
-test_excludes_dot_terraform_directory
-test_leaves_files_without_tokens_unchanged
-test_no_files_matched_warns_but_succeeds
-test_no_arguments_is_an_error
+# name:description pairs, run in order with a one-line explanation printed
+# before each one executes.
+cases=(
+  "test_replaces_single_token:Replaces a single #{Token}# with its env var value and logs the replacement"
+  "test_replaces_multiple_tokens_on_one_line:Replaces multiple tokens on the same line"
+  "test_normalizes_dotted_and_dashed_variable_names:Normalizes dotted/dashed variable names (My.Connection-String -> MY_CONNECTION_STRING) before lookup"
+  "test_missing_variable_warns_and_empties_token:Missing variable -> token emptied, warning logged, exit 0"
+  "test_empty_variable_warns_and_empties_token:Present-but-empty variable -> token emptied, \"no value\" warning logged"
+  "test_processes_multiple_matched_files:Processes every file matched by a glob pattern, not just the first"
+  "test_preserves_missing_trailing_newline:Preserves a file's lack of trailing newline after processing"
+  "test_excludes_dot_terraform_directory:Skips files inside .terraform/"
+  "test_leaves_files_without_tokens_unchanged:Leaves files with no tokens byte-for-byte unchanged"
+  "test_no_files_matched_warns_but_succeeds:No files match the pattern -> warning logged, exit 0 (not a failure)"
+  "test_no_arguments_is_an_error:No pattern argument at all -> error logged, exit 1"
+)
+
+for case in "${cases[@]}"; do
+  name="${case%%:*}"
+  desc="${case#*:}"
+  echo "- $desc"
+  "$name"
+done
 
 echo
 echo "$pass passed, $fail failed"
