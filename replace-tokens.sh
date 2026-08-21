@@ -51,6 +51,20 @@
 set -euo pipefail
 shopt -s globstar nullglob dotglob
 
+# ANSI styling: dim the routine "processing" lines, bold+green the
+# "replaced" lines so actual substitutions stand out in the log. Both the
+# Azure Pipelines log viewer and ordinary terminals render these; set
+# NO_COLOR to disable.
+if [ -z "${NO_COLOR:-}" ]; then
+  c_dim=$'\033[2m'
+  c_bold_green=$'\033[1;32m'
+  c_reset=$'\033[0m'
+else
+  c_dim=''
+  c_bold_green=''
+  c_reset=''
+fi
+
 # Directories to skip entirely (e.g. Terraform provider/module cache).
 exclude_dirs=(.terraform)
 
@@ -138,7 +152,7 @@ log_event() {
   local event="$1" file="$2" name="${1#*:}"
   case "$event" in
     REPLACED:*)
-      echo "replace-tokens: replaced #{$name}# in $file"
+      echo "${c_bold_green}replace-tokens: replaced #{$name}# in $file${c_reset}"
       ;;
     EMPTYVALUE:*)
       echo "##vso[task.logissue type=warning]replace-tokens: variable for token '#{$name}#' exists but has no value (empty) in $file"
@@ -152,7 +166,7 @@ log_event() {
 exit_code=0
 
 for file in "${files[@]}"; do
-  echo "replace-tokens: processing $file"
+  echo "${c_dim}replace-tokens: processing $file${c_reset}"
 
   tmpfile=$(mktemp)
   eventfile=$(mktemp)
