@@ -132,7 +132,15 @@ steps:
       done
 
       if [ "${#files[@]}" -eq 0 ]; then
-        echo "##vso[task.logissue type=warning]replace-tokens: no files matched pattern(s): $TARGET_FILES"
+        # A blank/whitespace-only targetFiles is a normal, expected case (no
+        # tokens to replace in this step) -- not a warning. Only warn when a
+        # non-blank pattern was actually supplied and genuinely matched
+        # nothing.
+        if [ -z "${TARGET_FILES//[[:space:]]/}" ]; then
+          echo "${c_dim}replace-tokens: no target file pattern(s) supplied, skipping${c_reset}"
+        else
+          echo "##vso[task.logissue type=warning]replace-tokens: no files matched pattern(s): $TARGET_FILES"
+        fi
         exit 0
       fi
 

@@ -93,7 +93,21 @@ for pattern in "$@"; do
 done
 
 if [ "${#files[@]}" -eq 0 ]; then
-  echo "##vso[task.logissue type=warning]replace-tokens.sh: no files matched pattern(s): $*"
+  # Blank/whitespace-only patterns (e.g. an empty targetFiles) mean "nothing
+  # to do" -- a normal, expected case, not a warning. Only warn when a
+  # non-blank pattern was actually supplied and genuinely matched nothing.
+  all_blank=1
+  for pattern in "$@"; do
+    if [ -n "${pattern//[[:space:]]/}" ]; then
+      all_blank=0
+      break
+    fi
+  done
+  if [ "$all_blank" -eq 1 ]; then
+    echo "${c_dim}replace-tokens.sh: no target file pattern(s) supplied, skipping${c_reset}"
+  else
+    echo "##vso[task.logissue type=warning]replace-tokens.sh: no files matched pattern(s): $*"
+  fi
   exit 0
 fi
 

@@ -34,6 +34,18 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local desc="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" != *"$needle"* ]]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    echo "FAIL: $desc"
+    echo "  expected NOT to contain: $needle"
+    echo "  actual: $haystack"
+  fi
+}
+
 assert_status() {
   local desc="$1" expected="$2" actual="$3"
   if [ "$expected" -eq "$actual" ]; then
@@ -218,6 +230,20 @@ test_no_files_matched_warns_but_succeeds() {
   rm -rf "$dir"
 }
 
+test_blank_pattern_skips_without_warning() {
+  local dir out status
+  dir=$(mktemp -d)
+
+  out=$(cd "$dir" && env -i PATH="$PATH" bash "$SCRIPT" '' 2>&1)
+  status=$?
+
+  assert_status "blank pattern: exit code" 0 "$status"
+  assert_not_contains "blank pattern: no warning" "$out" "##vso[task.logissue type=warning]"
+  assert_contains "blank pattern: mentions skipping" "$out" "no target file pattern(s) supplied"
+
+  rm -rf "$dir"
+}
+
 test_no_arguments_is_an_error() {
   local out status
   out=$(env -i PATH="$PATH" bash "$SCRIPT" 2>&1)
@@ -242,6 +268,7 @@ cases=(
   "test_excludes_dot_terraform_directory:Skips files inside .terraform/"
   "test_leaves_files_without_tokens_unchanged:Leaves files with no tokens byte-for-byte unchanged"
   "test_no_files_matched_warns_but_succeeds:No files match the pattern -> warning logged, exit 0 (not a failure)"
+  "test_blank_pattern_skips_without_warning:Blank pattern (e.g. empty targetFiles) -> skipped silently, no warning, exit 0"
   "test_no_arguments_is_an_error:No pattern argument at all -> error logged, exit 1"
 )
 
