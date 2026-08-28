@@ -1,0 +1,19 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - '*'
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: ./tests/test_replace-tokens.sh
+    displayName: Run test suite
+
+  - script: shellcheck replace-tokens.sh tests/test_replace-tokens.sh
+    displayName: ShellCheck
